@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  /* 주요 색상 */
+  --color-flow-blue: #0052cc;
+  --color-flow-purple: #6554c0;
+
+  /* 보조 색상 */
+  --color-flow-teal: #36b37e;
+
+  /* 강조 색상 */
+  --color-orange: #ff5630;
+
+  /* 회사 폰트 */
+  --font-noto-sans-kr: "Noto Sans KR", sans-serif;
+}
