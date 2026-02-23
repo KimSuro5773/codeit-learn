@@ -1,4 +1,5 @@
-import { ThemeProvider } from "next-themes";
+// app/layout.tsx
+
 import "./globals.css";
 
 export default function RootLayout({
@@ -7,18 +8,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-          enableColorScheme={false}
-        >
-          {children}
-        </ThemeProvider>
-      </body>
+    <html lang="en">
+      <body>{children}</body>
     </html>
   );
 }

@@ -1,44 +1,16 @@
-/* css */
+@import "tailwindcss";
 
-.container {
-  height: 100vh;
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  align-items: center;
-}
+@theme {
+  --animate-show-up: show-up 0.5s ease-in-out;
 
-.btn {
-  padding: 12px;
-  border-radius: 8px;
-  border: none;
-  background-color: #000;
-  color: #fff;
-  cursor: pointer;
-  transition: all 0.3s ease-in-out;
-}
-
-.btn:hover {
-  background-color: gray;
-  color: black;
-}
-
-.menu-container {
-  border-radius: 8px;
-  width: 100px;
-  height: 100px;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: all 0.3s ease;
-}
-
-.menu-item {
-  border: 1px solid black;
-  width: 100px;
-  height: 20px;
-}
-
-.menu-container.active {
-  opacity: 1;
-  transform: translateY(0);
+  @keyframes show-up {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
 }

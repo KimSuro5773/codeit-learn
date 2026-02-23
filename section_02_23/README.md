@@ -449,19 +449,19 @@ ARIA(Accessible Rich Internet Applications)는 HTML만으로 표현하기 어려
 ```tsx
 // app/posts/[id]/page.tsx
 
-import { cache } from "react";
+// Next.js Request Memoization으로 요청이 한 번만 실행된다. (GET 요청만)
+// 함수가 Memoization 되는게 아닌 fetch가 적용되는 것이다.
+// 함수를 Memoization 하려면 React.cache를 사용하자
+const getPost = async (id: string) => {
+  const response = await fetch(
+    `https://jsonplaceholder.typicode.com/posts/${id}`,
+  );
 
-// cache()로 감싸면 같은 렌더링 사이클에서 동일한 인자로 호출 시
-// API 요청을 1번만 실행하고 결과를 재사용한다
-const getPost = cache(async (id: string) => {
-  const res = await fetch(`https://api.example.com/posts/${id}`);
-  return res.json();
-});
+  return response.json();
+};
 
-// generateMetadata와 Page 컴포넌트가 각각 getPost를 호출하더라도
-// cache() 덕분에 실제 API 요청은 1번만 발생한다
 export async function generateMetadata({ params }: { params: { id: string } }) {
-  const post = await getPost(params.id); // API 호출 (1번째 → 실제 요청 발생)
+  const post = await getPost(params.id); // 동일한 URL 호출 → Request Memoization
 
   return {
     title: post.title,
@@ -475,7 +475,7 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
 }
 
 export default async function PostPage({ params }: { params: { id: string } }) {
-  const post = await getPost(params.id); // API 호출 (2번째 → 캐시에서 반환, 실제 요청 없음)
+  const post = await getPost(params.id); // 동일한 URL 호출 → Request Memoization
 
   return (
     <article>
@@ -486,20 +486,10 @@ export default async function PostPage({ params }: { params: { id: string } }) {
 }
 ```
 
-#### 동작 원리
-
-```
-렌더링 사이클 시작
-├── generateMetadata() 실행
-│   └── getPost("123") 호출 → 실제 API 요청 발생 → 결과 캐시에 저장
-└── PostPage() 실행
-    └── getPost("123") 호출 → 캐시에서 반환 (API 요청 없음)
-
-결과: API 요청 1번으로 메타데이터 + 페이지 데이터 모두 처리
-```
-
-| 항목               | 설명                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| `cache()`          | React의 서버 사이드 캐싱 함수, 동일 인자 호출 시 결과 재사용 |
-| `generateMetadata` | Next.js App Router에서 동적으로 메타데이터를 생성하는 함수   |
-| 캐시 범위          | 동일한 렌더링 사이클(요청) 내에서만 유효 (요청마다 초기화)   |
+| 항목                  | 설명                                                                      |
+| --------------------- | ------------------------------------------------------------------------- |
+| `Request Memoization` | Next.js가 동일 렌더링 사이클 내 동일한 URL의 `fetch` 호출을 자동으로 캐싱 |
+| 적용 대상             | `fetch`를 사용하는 GET 요청에만 자동 적용 (함수 자체는 Memoization 안 됨) |
+| `generateMetadata`    | Next.js App Router에서 동적으로 메타데이터를 생성하는 함수                |
+| 캐시 범위             | 동일한 렌더링 사이클(요청) 내에서만 유효 (요청마다 초기화)                |
+| 함수 Memoization 방법 | `fetch` 대신 함수를 직접 캐싱하려면 `React.cache()`로 함수를 감싸서 사용  |
