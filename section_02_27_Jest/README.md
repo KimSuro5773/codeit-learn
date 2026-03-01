@@ -28,6 +28,11 @@
    - [실행 순서 정리](#실행-순서-정리)
 8. [Mock 초기화](#8-mock-초기화)
    - [mockClear / mockReset / mockRestore](#mockclear--mockreset--mockrestore)
+9. [비동기 코드 테스트](#9-비동기-코드-테스트)
+   - [async/await 방식](#asyncawait-방식)
+   - [Promise Chaining 방식](#promise-chaining-방식)
+   - [에러 케이스 테스트](#에러-케이스-테스트)
+   - [방식 비교](#방식-비교)
 
 ---
 
@@ -869,3 +874,208 @@ console.log(mockFn()); // undefined ← 반환값도 초기화됨
 const spy = jest.spyOn(console, "log").mockImplementation(() => {});
 spy.mockRestore(); // 원본 console.log로 복원됨
 ```
+
+---
+
+## 9. 비동기 코드 테스트
+
+비동기 함수를 테스트할 때는 Jest가 Promise가 완료될 때까지 기다리도록 올바르게 작성해야 한다.
+**`await`나 `return`을 빠뜨리면 테스트가 Promise가 완료되기 전에 종료**되어 항상 통과하는 잘못된 테스트가 만들어진다.
+
+---
+
+### async/await 방식
+
+#### 개념
+
+테스트 함수에 `async`를 선언하고 비동기 호출마다 `await`를 붙이는 방식이다.
+동기 코드와 가장 유사한 흐름으로 읽히기 때문에 **가독성이 높고 현재 가장 널리 사용**된다.
+
+#### 예제 코드
+
+```js
+// 테스트 대상 함수
+async function fetchUser(id) {
+  const res = await fetch(`/api/users/${id}`);
+  if (!res.ok) throw new Error("사용자를 찾을 수 없습니다");
+  return res.json();
+}
+```
+
+**성공 케이스**
+
+```js
+test("사용자 정보를 반환한다", async () => {
+  // Arrange: fetch를 mock으로 대체
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: jest.fn().mockResolvedValue({ id: 1, name: "홍길동" }),
+  });
+
+  // Act: await로 Promise가 완료될 때까지 기다린다
+  const user = await fetchUser(1);
+
+  // Assert
+  expect(user).toEqual({ id: 1, name: "홍길동" });
+  expect(global.fetch).toHaveBeenCalledWith("/api/users/1");
+});
+```
+
+**에러 케이스 — `rejects` 매처 사용**
+
+```js
+test("응답이 실패하면 에러를 던진다", async () => {
+  // Arrange
+  global.fetch = jest.fn().mockResolvedValue({ ok: false });
+
+  // Assert: rejects 매처와 await를 함께 써야 한다
+  await expect(fetchUser(1)).rejects.toThrow("사용자를 찾을 수 없습니다");
+});
+```
+
+> `await expect(...).rejects.toThrow()`에서 `await`를 생략하면 Promise가 reject되어도 테스트가 통과해버린다.
+
+---
+
+### Promise Chaining 방식
+
+#### 개념
+
+`.then()` / `.catch()`를 연결해서 비동기 흐름을 처리하는 방식이다.
+테스트 함수에서 반드시 **Promise를 `return`** 해야 Jest가 완료를 기다린다.
+`return`을 빠뜨리면 Promise가 완료되기 전에 테스트가 종료되어 항상 통과하는 오류가 생긴다.
+
+#### 예제 코드
+
+**성공 케이스**
+
+```js
+test("사용자 정보를 반환한다", () => {
+  // Arrange
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: jest.fn().mockResolvedValue({ id: 1, name: "홍길동" }),
+  });
+
+  // return을 반드시 붙여야 Jest가 Promise 완료를 기다린다
+  return fetchUser(1).then((user) => {
+    expect(user).toEqual({ id: 1, name: "홍길동" });
+  });
+});
+```
+
+**에러 케이스 — `.catch()` 사용**
+
+```js
+test("응답이 실패하면 에러를 던진다", () => {
+  // Arrange
+  global.fetch = jest.fn().mockResolvedValue({ ok: false });
+
+  // expect.assertions로 catch가 반드시 실행됨을 보장한다
+  expect.assertions(1);
+
+  return fetchUser(1).catch((error) => {
+    expect(error.message).toBe("사용자를 찾을 수 없습니다");
+  });
+});
+```
+
+> `expect.assertions(1)`을 선언하지 않으면 `fetchUser`가 성공했을 때 `.catch()`가 실행되지 않아도 테스트가 통과된다.
+
+**`resolves` / `rejects` 매처 사용**
+
+Promise를 직접 체이닝하는 대신 Jest의 `resolves` / `rejects` 매처에 Promise를 전달하는 방법도 있다.
+두 가지 스타일 모두 지원하며, **사용하는 스타일에 따라 `return` 또는 `await`가 반드시 필요**하다.
+
+```js
+// ── Promise Chaining 스타일: return 필요 ──
+
+test("사용자 정보를 반환한다", () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: jest.fn().mockResolvedValue({ id: 1, name: "홍길동" }),
+  });
+
+  return expect(fetchUser(1)).resolves.toEqual({ id: 1, name: "홍길동" });
+});
+
+test("응답이 실패하면 에러를 던진다", () => {
+  expect.assertions(1);
+  global.fetch = jest.fn().mockResolvedValue({ ok: false });
+
+  return expect(fetchUser(1)).rejects.toThrow("사용자를 찾을 수 없습니다");
+});
+
+// ── async/await 스타일: await 필요 ──
+
+test("사용자 정보를 반환한다", async () => {
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    json: jest.fn().mockResolvedValue({ id: 1, name: "홍길동" }),
+  });
+
+  await expect(fetchUser(1)).resolves.toEqual({ id: 1, name: "홍길동" });
+});
+
+test("응답이 실패하면 에러를 던진다", async () => {
+  expect.assertions(1);
+  global.fetch = jest.fn().mockResolvedValue({ ok: false });
+
+  await expect(fetchUser(1)).rejects.toThrow("사용자를 찾을 수 없습니다");
+});
+```
+
+> `rejects` 매처 사용 시 `expect.assertions(1)`을 함께 선언하면 reject가 발생하지 않았을 때 테스트가 그냥 통과되는 것을 방지할 수 있다.
+
+---
+
+### 에러 케이스 테스트
+
+비동기 에러를 테스트하는 방법은 세 가지다. 상황에 따라 적합한 방식을 선택한다.
+
+| 방식                       | 코드                                           | 특징                                         |
+| -------------------------- | ---------------------------------------------- | -------------------------------------------- |
+| `rejects` 매처 + `await`   | `await expect(fn()).rejects.toThrow(msg)`      | 가장 간결하고 권장되는 방식                  |
+| `rejects` 매처 + `return`  | `return expect(fn()).rejects.toThrow(msg)`     | Promise Chaining 스타일과 일관성 유지        |
+| `try/catch` + `assertions` | `expect.assertions(1)` + `catch` 블록에서 검증 | 에러 객체의 세부 프로퍼티까지 검증할 때 유용 |
+
+```js
+// ① rejects 매처 + await (권장)
+test("에러 메시지를 검증한다", async () => {
+  global.fetch = jest.fn().mockRejectedValue(new Error("Network Error"));
+
+  await expect(fetchUser(1)).rejects.toThrow("Network Error");
+});
+
+// ② try/catch + assertions (에러 객체 상세 검증)
+test("에러 객체의 프로퍼티를 검증한다", async () => {
+  expect.assertions(2); // catch 블록 안의 assertion 2개가 반드시 실행돼야 한다
+
+  const networkError = new Error("Network Error");
+  networkError.statusCode = 503;
+  global.fetch = jest.fn().mockRejectedValue(networkError);
+
+  try {
+    await fetchUser(1);
+  } catch (error) {
+    expect(error.message).toBe("Network Error");
+    expect(error.statusCode).toBe(503);
+  }
+});
+```
+
+---
+
+### 방식 비교
+
+| 항목      | async/await                        | Promise Chaining                         |
+| --------- | ---------------------------------- | ---------------------------------------- |
+| 가독성    | 동기 코드처럼 읽혀 직관적이다      | 중첩이 깊어지면 가독성이 떨어질 수 있다  |
+| 실수 위험 | `await` 누락 시 항상 통과하는 오류 | `return` 누락 시 항상 통과하는 오류      |
+| 에러 처리 | `try/catch` 또는 `rejects` 매처    | `.catch()` 또는 `rejects` 매처           |
+| 권장 상황 | 대부분의 경우                      | Promise를 직접 반환하는 유틸 함수 테스트 |
+
+어느 방식을 쓰든 **Promise 완료를 Jest에게 알리는 것**이 핵심이다.
+
+- `async/await` → `await` 키워드로 대기
+- Promise Chaining → `return`으로 Promise를 반환
