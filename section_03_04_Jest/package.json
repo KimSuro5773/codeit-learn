@@ -1,0 +1,43 @@
+{
+  "name": "section_03_04_jest",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watchAll",
+    "test:coverage": "jest --coverage"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "jest-extended": "^7.0.0"
+  },
+  "dependencies": {
+    "axios": "^1.13.5"
+  },
+  "jest": {
+    "setupFilesAfterEnv": [
+      "./testSetup/testSetup.js"
+    ],
+    "collectCoverageFrom": [
+      "**/*.js", 
+      "!math.js", 
+      "!**/node_modules/**",
+      "!coverage/**",
+      "!logs/**",
+      "!test/**"
+    ],
+     "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    }
+  }
+}
